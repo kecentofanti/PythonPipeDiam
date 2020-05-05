@@ -1,0 +1,71 @@
+# -*- coding: utf-8 -*-
+# The purpous of this program is to tell the user the minimum pipe diameter required so that the pressure drop 
+# does not exceed 103kPa(or other user input value) given a set of conditions such as temperature, pipelength, and amount of water. 
+# from pg. 345 
+"""
+#A heat exchanger must handle 2.5 L/s of water through a
+smooth pipe with length of 100 m. The pressure drop cannot exceed 103
+kPa at 25 degC. Compute the minimum pipe diameter required for this
+application
+""" 
+import numpy as np #numpy is the library that allows for mathematic calculations and functions that are not built in, such as arrays
+from scipy.optimize import fsolve #fsolve allows for program to find square roots of nonlinear equations, and scipy.optopmize houses that function
+#import matplotlib.pyplot as plt
+#this section creates variables and assigns them values
+
+#my 3 improvements are: 1- allowing user to input whatever value they want
+#the program converts the inputed value from C to K, L/s to m^3/S, and kPa to Pa. This makes it easier for user as these are more common units that would be used
+#the program outputs the converted units so that the user can see how it has been converted and verify there are no errors in the numbers they plugged in
+
+T = float(input("Enter temperature in Celcuis: ")) + 273.15  # this converts the temperature from Celcuis to Kelvin
+#allows user input to make this applicipal to multiple different situations. added a cast so that the input would be converted to a flaot
+Qin = float(input("Enter amount of water that must flow through the pipe in L/s : ")) # L/s
+Q = Qin*10**-3 #converts to m^3/s
+deltaP = float(input("Enter maximum pressure drop in KPa: "))*1000 # Pa # this is the amount of pressure change that cannot be exceeded 
+deltaL = float(input("Enter pipe length in meters : ")) # m #this is the length of the pipe
+ 
+ #Note these correlations expect dimensionless T, where the magnitude
+ # of T is in K
+
+def rho(T): #this is a function that allows for a variable input of T(temp), and calculates the rho value for the equation
+     return 46.048 + 9.418 * T -0.0329 * T**2 +4.882e-5 * T**3 - 2.895e-8 * T**4
+#the output of the function will be calculated- the ** means ^ exponent ex: T^2 is written as T**2
+def mu(T):
+     return np.exp(-10.547 + 541.69 / (T - 144.53))
+# another function that calculates mu value based on the variable inpu of T. np.exp() is e^(x)
+def fanning_friction_factor_(Re): # funcion that determines that fanning friction factor
+    if Re < 2100: # this checks if the flow is not-turbulent. If so them, it throws the error message to notify the user that this calculation will not be acurate
+       raise Exception('Flow is probably not turbulent, so this correlation is not appropriate.')
+# solve the Nikuradse correlation to get the friction factor
+    #reguardless of the Reynolds number, the program will continue to calculate the fz given the variable input of f
+    def fz(f): return 1.0/np.sqrt(f) - (4.0*np.log10(Re*np.sqrt(f))-0.4) #this sets up the equation that will be solved, and for this funcion, the equation is set =0
+    sol, = fsolve(fz, 0.01) #the fsolve function solves the equation above to find the value of f and sets it = the variable sol. It starts w the value of .01 in trying to solve it
+    return sol
+
+fanning_friction_factor = np.vectorize(fanning_friction_factor_) # this converts the function to a vector so it can store multiple values
+Re = np.linspace(2200, 9000) # creates an array of 50 evenly spaced numbers beween these 2 values.
+f = fanning_friction_factor(Re) # this sets the value of f = the value of sol-> which comes from the inputed reynolds number in the fanning friction factor fucntion)
+# This creates a plot, however this is not needed to determine the minimum pipe diameter. Additionally, it was causing the rest of the code to malfunction so it was removed
+#plt.plot(Re, f) 
+#plt.xlabel('Re')
+#plt.ylabel('fanning friction factor')
+ # You can see why we use 0.01 as an initial guess for solving for the
+ # Fanning friction factor; it falls in the middle of ranges possible
+ # for these Re numbers.
+#plt.savefig('images/pipe-diameter-1.png')
+
+def objective(D): # this function sets up the formula to be solved for the diameter(D) of the pipe
+    v = Q / (np.pi * D**2 / 4)
+    Re = D * v * rho(T) / mu(T)
+
+    fF = fanning_friction_factor(Re)
+
+    return deltaP - 2 * fF * rho(T) * deltaL * v**2 / D
+
+
+D, = fsolve(objective, 0.04) # solves for the value of d in the equaion from fsolve, starting with a guessed value of .04
+print("Temperature is", T, "degrees K")
+print("amount of water flowing is ", Q, "in m^3/s")
+print("pressure is ",deltaP,"KPa" )
+print('The minimum pipe diameter is {0} m\n'.format(D)) #outputs value in console so user can read it
+ 
